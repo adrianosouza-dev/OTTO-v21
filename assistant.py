@@ -20,6 +20,11 @@ import webbrowser
 
 import speech_recognition as sr
 import pyttsx3
+import wave
+import io
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+import pygame
+from piper import PiperVoice, SynthesisConfig
 from anthropic import Anthropic
 
 import config
@@ -112,19 +117,71 @@ ao "Comando atual".
 # Voz
 # ---------------------------------------------------------------------------
 
+CAMINHO_VOZ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pt_BR-faber-medium.onnx")
+VELOCIDADE_VOZ = 0.9   # menor = mais rápido (ex: 0.8), maior = mais devagar (ex: 1.1)
+
+def _pedaco_para_som(pedaco):
+    """Embrulha o áudio do Piper num WAV na memória, para o pygame converter o formato sozinho."""
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(pedaco.sample_channels)
+        wav.setsampwidth(pedaco.sample_width)
+        wav.setframerate(pedaco.sample_rate)
+        wav.writeframes(pedaco.audio_int16_bytes)
+    buffer.seek(0)
+    return pygame.mixer.Sound(file=buffer)
+
+
+def _falar_piper(voz, texto):
+    """Gera a voz frase por frase e já vai tocando, sem esperar o áudio inteiro."""
+    config_voz = SynthesisConfig(length_scale=VELOCIDADE_VOZ)
+    canal = None
+    t = time.time()
+    for pedaco in voz.synthesize(texto, syn_config=config_voz):
+        som = _pedaco_para_som(pedaco)
+        if canal is None:
+            print(f"[tempo] Piper (primeira frase): {time.time() - t:.1f}s")
+            canal = som.play()
+        else:
+            while canal.get_queue() is not None:   # espera a fila liberar
+                time.sleep(0.01)
+            canal.queue(som)                        # toca logo depois da frase atual
+    while canal is not None and canal.get_busy():
+        time.sleep(0.05)
+
+
 def _thread_voz():
-    """Única thread que usa o pyttsx3 (ele não funciona bem sendo chamado de várias threads)."""
+    """Única thread que fala. Usa o Piper; se der problema, usa o pyttsx3."""
     global ultima_fala_fim
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 175)
+
+    try:
+        voz_piper = PiperVoice.load(CAMINHO_VOZ)
+        # O som precisa estar no mesmo formato da voz: mono, 16 bits, na taxa da voz
+        pygame.mixer.init()
+    except Exception as e:
+        print(f"[voz] Não consegui carregar a voz do Piper ({e}). Usando pyttsx3.")
+        voz_piper = None
+
+    engine = None
     while True:
         texto = fila_falas.get()
         falando.set()
         try:
-            engine.say(texto)
-            engine.runAndWait()
+            if voz_piper is not None:
+                _falar_piper(voz_piper, texto)
+            else:
+                raise RuntimeError("Piper indisponível")
         except Exception as e:
-            print(f"Erro na voz: {e}")
+            if voz_piper is not None:
+                print(f"[voz] Piper falhou ({e}), usando pyttsx3.")
+            try:
+                if engine is None:
+                    engine = pyttsx3.init()
+                    engine.setProperty("rate", 175)
+                engine.say(texto)
+                engine.runAndWait()
+            except Exception as e2:
+                print(f"Erro na voz: {e2}")
         finally:
             ultima_fala_fim = time.time()
             falando.clear()
@@ -146,8 +203,10 @@ def ouvir():
         print("Ouvindo...")
         audio = recognizer.listen(source)
     try:
+        t = time.time()
         texto = recognizer.recognize_google(audio, language="pt-BR")
-        print(f"Você disse: {texto}")
+        print(f"[tempo] Google (voz → texto): {time.time() - t:.1f}s")
+        print (f"Você disse: {texto}")
         return texto.lower()
     except sr.UnknownValueError:
         return ""
@@ -187,13 +246,16 @@ def interpretar_comando(texto):
     if TEST_MODE:
         return interpretar_comando_teste(texto)
 
+    t = time.time()
     contexto = memoria.buscar_contexto(texto)
+    print(f"[tempo] Supabase (memória): {time.time() - t:.1f}s")
     if contexto:
         conteudo_usuario = f"Histórico anterior (só contexto):\n{contexto}\n\nComando atual: {texto}"
     else:
         conteudo_usuario = f"Comando atual: {texto}"
 
     try:
+        t = time.time()
         resposta = client.messages.create(
             model=MODELO,
             max_tokens=1024,
@@ -204,6 +266,7 @@ def interpretar_comando(texto):
         texto_resposta = "".join(
             bloco.text for bloco in resposta.content if getattr(bloco, "type", "") == "text"
         )
+        print(f"[tempo] Claude (decidir ação): {time.time() - t:.1f}s")
         return extrair_json(texto_resposta)
     except json.JSONDecodeError:
         return {"action": "unknown", "argument": "", "reply": "Não entendi o comando."}

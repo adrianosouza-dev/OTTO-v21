@@ -10,3 +10,9 @@ venv/
 
 # Áudios temporários
 *.mp3
+
+# Vozes do Piper (baixar com: python -m piper.download_voices pt_BR-faber-medium)
+*.onnx
+*.onnx.json
+
+*.wav
