@@ -1,7 +1,8 @@
 # OTTO-V21 — Assistente de Voz para Windows
 
 Assistente de voz que roda no seu notebook. Você fala um comando, ele entende
-usando o Claude (API da Anthropic), executa a ação no computador e responde em voz.
+usando o Claude (API da Anthropic), executa a ação no computador e responde com
+uma voz natural em português (Piper).
 
 Ele abre qualquer programa do Menu Iniciar (inclusive apps da Microsoft Store),
 abre pastas e telas de configuração do Windows, pesquisa na web, responde perguntas
@@ -26,13 +27,16 @@ Microfone ──► Google Speech (fala → texto)
                            2. Envia ao Claude: regras + programas instalados + histórico + pedido
                            3. Claude escolhe UMA ação e uma frase de resposta (JSON)
                            4. Executa a ação no notebook
-                           5. Fala a resposta e salva na memória
+                           5. Fala a resposta (Piper) e salva na memória
 ```
 
 - O microfone **continua ouvindo enquanto ele executa**. Pedidos novos entram numa fila.
 - A voz e as tarefas rodam em threads separadas.
+- A voz é gerada **frase por frase**: ele começa a falar antes de terminar de gerar o áudio todo.
 - Se ele estava falando enquanto o microfone gravava, o áudio é descartado
   (para não responder à própria voz), a não ser que contenha a palavra de ativação.
+- O terminal mostra o tempo de cada etapa (`[tempo] Google`, `[tempo] Supabase`,
+  `[tempo] Claude`, `[tempo] Piper`) para ajudar a achar o que está lento.
 
 ### Arquivos
 
@@ -41,7 +45,9 @@ Microfone ──► Google Speech (fala → texto)
 | `assistant.py` | Núcleo: microfone, voz, conversa com o Claude, ações e loop principal |
 | `inventario.py` | Lista os programas do Menu Iniciar e abre programas, pastas e configurações |
 | `memoria.py` | Memória permanente no Supabase, com `memory.json` como reserva |
-| `config.py` | Nome, palavra de ativação, voz, modo de teste e chaves |
+| `config_exemplo.py` | Modelo de configuração. Copie para `config.py` |
+| `config.py` | Suas configurações e chaves (**não vai para o git**) |
+| `pt_BR-faber-medium.onnx` + `.onnx.json` | Voz do Piper (**não vai para o git**, baixe no passo 5) |
 | `requirements.txt` | Dependências Python |
 
 ---
@@ -99,18 +105,34 @@ Python **3.10 ou mais novo** (o projeto foi testado com 3.12): https://www.pytho
 
 ### 2. Ambiente virtual
 Na pasta do projeto:
-```bash
+```powershell
 python -m venv venv
 venv\Scripts\activate
 ```
 
 ### 3. Dependências
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 No Windows o `PyAudio` costuma instalar direto pelo pip.
 
-### 4. Chave da Anthropic
+### 4. Configuração
+Copie o modelo e edite:
+```powershell
+copy config_exemplo.py config.py
+```
+
+### 5. Voz do Piper
+Na pasta do projeto, com o ambiente virtual ativado:
+```powershell
+python -m piper.download_voices pt_BR-faber-medium
+```
+Isso baixa `pt_BR-faber-medium.onnx` e `pt_BR-faber-medium.onnx.json` (cerca de 60 MB).
+Os dois arquivos precisam ficar **na mesma pasta do `assistant.py`**.
+
+Se a voz não for encontrada, ele avisa no terminal e usa a voz do Windows (`pyttsx3`).
+
+### 6. Chave da Anthropic
 Crie uma chave em https://console.anthropic.com.
 
 **Recomendado:** defina a chave como variável de ambiente e deixe `ANTHROPIC_API_KEY = ""` no `config.py`:
@@ -119,7 +141,7 @@ setx ANTHROPIC_API_KEY "sua-chave-aqui"
 ```
 Feche e abra o terminal depois do `setx`.
 
-### 5. Memória no Supabase (opcional)
+### 7. Memória no Supabase (opcional)
 Sem Supabase, ele guarda a memória em `memory.json`, na pasta de onde você rodar o script.
 
 Para usar o Supabase:
@@ -144,60 +166,66 @@ Para usar o Supabase:
 
 Se o Supabase falhar, ele usa o `memory.json` automaticamente e continua funcionando.
 
-### 6. Rodar
+### 8. Rodar
 Com o ambiente virtual ativado:
-```bash
+```powershell
 python assistant.py
 ```
 
 ---
 
-## Configuração (`config.py`)
+## Configuração
+
+### `config.py`
 
 | Opção | Para que serve |
 |---|---|
-| `WAKE_WORD` | Palavra de ativação (minúsculas). Atual: `"storm"` |
-| `ASSISTANT_NAME` | Nome que ele usa para se apresentar. Atual: `"OTTO-V21"` |
+| `WAKE_WORD` | Palavra de ativação (minúsculas). Padrão: `"storm"` |
+| `ASSISTANT_NAME` | Nome que ele usa para se apresentar. Padrão: `"OTTO-V21"` |
 | `VOICE_ENABLED` | `False` = responde só por texto no terminal |
 | `TEST_MODE` | `True` = não chama a API; usa palavras-chave simples (navegador, calculadora, pesquisa) |
 | `ANTHROPIC_API_KEY` | Chave da Anthropic (prefira a variável de ambiente) |
 | `SUPABASE_URL` / `SUPABASE_KEY` | Dados do Supabase (prefira variáveis de ambiente) |
 
-Para trocar a palavra de ativação, mude também as variações em `VARIACOES_ATIVACAO`,
-no início do `assistant.py`.
+### No início do `assistant.py`
+
+| Opção | Para que serve |
+|---|---|
+| `MODELO` | Modelo do Claude usado. Padrão: `claude-haiku-5-5` (rápido e barato) |
+| `VARIACOES_ATIVACAO` | Variações aceitas da palavra de ativação. Se trocar o `WAKE_WORD`, troque aqui também |
+| `CAMINHO_VOZ` | Arquivo `.onnx` da voz do Piper |
+| `VELOCIDADE_VOZ` | Velocidade da fala: menor = mais rápido (`0.8`), maior = mais devagar (`1.1`). Padrão: `0.9` |
 
 ---
 
-## ⚠️ Segurança
+## ⚠️ Segurança e privacidade
 
-- **Não deixe chaves dentro do `config.py`** se for compartilhar a pasta ou publicar no
-  GitHub. A chave secreta do Supabase (`sb_secret_...`) dá acesso total ao banco.
-- Se publicar o projeto, crie um `.gitignore` com:
-  ```
-  venv/
-  __pycache__/
-  memory.json
-  .env
-  ```
+- **Não deixe chaves dentro do `config.py`** se for compartilhar a pasta. O `config.py`
+  já está no `.gitignore`, mas variáveis de ambiente são mais seguras.
+  A chave secreta do Supabase (`sb_secret_...`) dá acesso total ao banco.
+- O `memory.json` guarda tudo o que você falou. Ele **ainda não está no `.gitignore`**:
+  não faça commit dele.
 - A ação de **comando de terminal** executa o que o Claude decidir. O prompt proíbe
-  comandos destrutivos, mas não há bloqueio no código.
+  comandos destrutivos, mas **não há bloqueio no código**.
 - No **modo contínuo** e na **janela de 60 s**, qualquer voz perto do microfone (TV,
   outras pessoas) pode virar comando. Os comandos ditos no modo contínuo sem a palavra
   de ativação são executados, mas não são salvos na memória.
-- Os comandos são enviados ao Google (transcrição), à Anthropic (IA) e, se configurado,
-  ao Supabase.
+- Tudo o que o microfone capta enquanto ele está ouvindo é enviado ao Google
+  (transcrição); os comandos vão para a Anthropic (IA) e, se configurado, para o Supabase.
 
 ---
 
 ## Limitações conhecidas
 
 - **Precisa de internet** para transcrever a voz, chamar o Claude e usar o Supabase.
+  A voz (Piper) funciona offline.
 - **Uma ação por pedido**: "abre o Chrome e pesquisa X" executa só uma delas.
 - Não **fecha** programas e não controla **volume, brilho ou música**.
 - Não cria **timers, alarmes ou lembretes**.
 - Não sabe **data, hora, clima nem notícias** (a pesquisa só abre o Google, sem ler o resultado).
 - Não **fala o resultado** de comandos de terminal.
-- A voz (`pyttsx3`) é a do Windows e pode soar robótica ou sair em inglês, conforme as vozes instaladas.
+- Termos de pesquisa com `&` ou `#` são cortados.
+- Se o Claude responder com texto fora do JSON, o pedido vira "Não entendi o comando".
 - A mensagem de abertura contém a palavra "storm" e pode ser captada pelo próprio
   microfone como um comando.
 
@@ -205,11 +233,12 @@ no início do `assistant.py`.
 
 ## Próximos passos
 
+- **Segurança**: confirmação por voz antes de comandos de terminal; aceitar só
+  `http(s)` em "abrir site"; `memory.json` no `.gitignore`.
 - **Virar um agente**: tool use nativo da API, com várias ações por pedido e respostas
   baseadas no resultado do que foi feito.
 - **Busca na web com resposta falada** e **data/hora** no prompt.
-- **Voz mais natural**: edge-tts ou Piper, com streaming para começar a falar mais rápido.
 - **Reconhecimento offline**: faster-whisper, e um detector de palavra de ativação
   (openWakeWord / Porcupine).
 - **Novas ações**: fechar programas, volume/mídia, timers, abrir arquivos.
-- **Confirmação por voz** antes de ações arriscadas.
+- **Prompt caching** para a lista de programas, reduzindo custo e tempo de resposta.
