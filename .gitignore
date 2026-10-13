@@ -1,0 +1,12 @@
+# Chaves e configurações pessoais
+config.py
+.env
+
+# Arquivos do Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Áudios temporários
+*.mp3
