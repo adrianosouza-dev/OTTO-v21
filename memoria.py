@@ -1,14 +1,15 @@
 """
-Memória permanente do Jarvis.
+Memória permanente do assistente.
 
 - Se o Supabase estiver configurado, guarda cada comando na tabela "falas".
 - Se não estiver (ou se der erro), usa o arquivo local memory.json.
-  O Jarvis nunca para de funcionar por causa da memória.
+  O assistente nunca para de funcionar por causa da memória.
 """
 
 import json
 import os
 import re
+from datetime import datetime, timezone
 
 import config
 
@@ -16,14 +17,16 @@ SUPABASE_URL = getattr(config, "SUPABASE_URL", "") or os.environ.get("SUPABASE_U
 SUPABASE_KEY = getattr(config, "SUPABASE_KEY", "") or os.environ.get("SUPABASE_KEY", "")
 
 TABELA = "falas"
-ARQUIVO_LOCAL = "memory.json"
+ARQUIVO_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.json")
 COLUNAS = "comando,resposta,criado_em"
 
 _client = None
 _ja_tentou = False
 
+NOME = getattr(config, "ASSISTANT_NAME", "Assistente")
+
 PALAVRAS_IGNORADAS = {
-    "jarvis", "quero", "preciso", "pode", "fazer", "sobre", "para", "isso",
+    getattr(config, "WAKE_WORD", "").lower(), "quero", "preciso", "pode", "fazer", "sobre", "para", "isso",
     "aquele", "aquela", "algo", "agora", "favor", "qual", "como", "onde",
 }
 
@@ -80,6 +83,7 @@ def _ler_local():
 
 
 def _salvar_local(registro):
+    registro = {**registro, "criado_em": datetime.now(timezone.utc).isoformat()}
     historico = _ler_local()
     historico.append(registro)
     with open(ARQUIVO_LOCAL, "w", encoding="utf-8") as f:
@@ -152,5 +156,5 @@ def buscar_contexto(texto, recentes=5, relevantes=5):
     else:
         itens = _ler_local()[-recentes:]
 
-    linhas = [f"- Você: {i.get('comando', '')} | Jarvis: {_texto_resposta(i)}" for i in itens]
+    linhas = [f"- Você: {i.get('comando', '')} | {NOME}: {_texto_resposta(i)}" for i in itens]
     return "\n".join(linhas)

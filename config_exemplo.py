@@ -9,6 +9,7 @@ ANTHROPIC_API_KEY = ""  # cole sua chave aqui, ou deixe em branco e use variáve
 
 WAKE_WORD = "storm"     # palavra que ativa o assistente (tudo em minúsculo)
 ASSISTANT_NAME = "OTTO-V21"
+NOME_USUARIO = ""        # opcional: como o assistente deve te chamar (ex: "Adriano")
 VOICE_ENABLED = True     # False = só responde por texto no terminal, sem falar
 
 TEST_MODE = False        # false = usa a API de verdade
