@@ -16,3 +16,6 @@ venv/
 *.onnx.json
 
 *.wav
+
+# Memória local (tudo o que você falou)
+memory.json
