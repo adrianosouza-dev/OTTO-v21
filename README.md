@@ -28,19 +28,27 @@ Microfone ──► Google Speech (fala → texto)
                            2. Envia ao Claude: data/hora + histórico + pedido
                            3. O Claude usa ferramentas (abrir app, buscar na web, terminal...)
                               ◄── vê o resultado de cada uma e decide o próximo passo
-                           4. Fala a resposta final (Piper) e salva na memória
+                           4. Fala a resposta (Piper) frase por frase, enquanto o Claude
+                              ainda escreve, e salva na memória
+                           5. Bip: pode falar de novo
 ```
 
 - **Várias ações por pedido**: "abre a calculadora e o bloco de notas" abre os dois.
 - **Ele vê o resultado do que fez**: "qual é o meu IP?" roda o comando e fala o IP.
 - **Conversa contínua**: depois de "como está o tempo hoje?", basta dizer "e amanhã?".
   A conversa recomeça depois de 5 minutos parada.
-- O microfone **continua ouvindo enquanto ele trabalha**. Pedidos novos entram numa fila.
-- A voz é gerada **frase por frase**: ele começa a falar antes de terminar de gerar o áudio todo.
-- Se ele estava falando enquanto o microfone gravava, o áudio é descartado
-  (para não responder à própria voz), a não ser que contenha a palavra de ativação.
+- **Fala enquanto pensa**: cada frase da resposta vai para a voz assim que o Claude a
+  escreve, e frases longas são quebradas nas vírgulas. A voz começa em menos de 1 segundo.
+- **Microfone desligado enquanto ele fala**: assim ele não ouve a própria voz. O microfone
+  volta logo depois, com um **bip** que avisa que você pode falar.
+- O microfone **continua ouvindo enquanto ele pensa** e enquanto o Google transcreve.
+  Pedidos novos entram numa fila.
+- Ele espera **1,3 segundo de silêncio** antes de considerar que você terminou: dá para
+  fazer uma pausa curta no meio da frase sem ser cortado.
+- No Windows, o assistente roda com **prioridade acima do normal**, para a voz não travar
+  quando o navegador está carregando.
 - O terminal mostra o tempo de cada etapa (`[tempo] Google`, `[tempo] Claude`,
-  `[tempo] Piper`) e cada ação feita (`[ação] ...`).
+  `[tempo] Voz`) e cada ação feita (`[ação] ...`).
 
 ### Arquivos
 
@@ -110,7 +118,7 @@ como "aquela pesquisa de ontem".
 | Forma | Como usar |
 |---|---|
 | **Palavra de ativação** | "**storm**, abre o Chrome". Também aceita "estorm", "istorm" e "storme", que são erros comuns de transcrição |
-| **Só a palavra** | "storm" → ele responde "Pode falar" e espera o comando |
+| **Só a palavra** | "storm" → ele toca um bip e espera o comando |
 | **Janela de 60 s** | Depois de cada comando, aceita outro **sem** dizer "storm" por 60 segundos |
 | **Modo contínuo** | Diga "storm, **modo contínuo**": ele ouve tudo até você dizer "**pode dormir**" |
 
@@ -195,7 +203,8 @@ Com o ambiente virtual ativado:
 ```powershell
 python assistant.py
 ```
-Ao iniciar, ele calibra o microfone por 1 segundo: fique em silêncio.
+Ao iniciar, ele calibra o microfone por 1 segundo: fique em silêncio. A voz leva de 10 a 30
+segundos para carregar, conforme o que mais estiver aberto no notebook.
 
 ---
 
@@ -227,14 +236,34 @@ Ao iniciar, ele calibra o microfone por 1 segundo: fique em silêncio.
 | Opção | Para que serve |
 |---|---|
 | `VARIACOES_ATIVACAO` | Variações aceitas da palavra de ativação. Se trocar o `WAKE_WORD`, troque aqui também |
+| `PAUSA_FIM_FRASE` | Segundos de silêncio para ele considerar que você terminou. Padrão: `1.3`. Se ainda cortar, aumente; se demorar a reagir, diminua |
+| `LIMITE_FRASE` | Duração máxima de uma gravação, em segundos. Padrão: `20` |
+| `SENSIBILIDADE_MINIMA` | Volume mínimo para contar como voz. Padrão: `10`. Se ele não ouvir você, diminua (ex: `7`); se pegar conversas distantes ou ruídos, aumente (ex: `20`). O terminal mostra o valor calibrado ao ligar |
 | `CAMINHO_VOZ` | Arquivo `.onnx` da voz do Piper |
 | `VELOCIDADE_VOZ` | Velocidade da fala: menor = mais rápido (`0.8`), maior = mais devagar (`1.1`). Padrão: `0.9` |
 
 ### Custo e velocidade
-O prompt (com a lista de programas) e a conversa ficam em **cache** na Anthropic. O
-primeiro pedido depois de ligar demora mais (cerca de 10 s); os seguintes costumam
-levar de 1 a 3 s, e as buscas na web de 5 a 6 s. O terminal mostra quantos tokens vieram
-do cache em cada chamada.
+O prompt (com a lista de programas) e a conversa ficam em **cache** na Anthropic, e ele
+**aquece o cache ao ligar**. A primeira frase da resposta costuma chegar em cerca de 1 s,
+e em cerca de 4 s quando ele busca na web. O terminal mostra quantos tokens vieram do
+cache em cada chamada.
+
+### Em notebooks modestos (pouca RAM, processador simples)
+Quando o processador chega a 100%, tudo fica lento: a voz demora a começar e o Windows
+descarta pedaços do áudio do microfone, e aí as palavras saem cortadas ("modo contín").
+Para o assistente funcionar bem:
+
+- **Deixe o notebook na tomada** e use o plano de energia **"Melhor desempenho"**. Na
+  bateria, o processador fica bem mais lento.
+- **Feche o VS Code e outros programas pesados.** Rode o assistente numa janela simples do
+  PowerShell.
+- **Evite sites pesados abertos** (vídeos, muitas abas). No modo contínuo, o som de um
+  vídeo também pode virar pedido.
+- Depois de instalar algo, o antivírus do Windows pode passar alguns minutos analisando os
+  arquivos novos e ocupando o processador.
+
+A lista de programas do Menu Iniciar fica salva em `apps_cache.json`: ao ligar, ele usa a
+lista salva, que carrega na hora, e atualiza o arquivo em segundo plano um minuto depois.
 
 ---
 
@@ -251,7 +280,7 @@ do cache em cada chamada.
 - No **modo contínuo** e na **janela de 60 s**, qualquer voz perto do microfone (TV,
   outras pessoas) pode virar pedido. Os pedidos ditos no modo contínuo sem a palavra
   de ativação são executados, mas não são salvos na memória.
-- Tudo o que o microfone capta enquanto ele está ouvindo é enviado ao Google
+- Tudo o que o microfone capta enquanto ele está ouvindo (menos a voz dele) é enviado ao Google
   (transcrição); os pedidos vão para a Anthropic (IA) e, se configurado, para o Supabase.
 
 ---
@@ -263,7 +292,8 @@ do cache em cada chamada.
 - Não **fecha** programas e não controla **volume, brilho ou música**.
 - Não cria **timers, alarmes ou lembretes**.
 - Não **vê a tela** e não lê arquivos.
-- Não pode ser **interrompido** enquanto fala.
+- Não pode ser **interrompido** enquanto fala: o microfone fica desligado até ele terminar.
+- Num notebook modesto, abrir o navegador ou um site pesado ainda deixa tudo mais lento.
 - A confirmação de comandos depende do reconhecimento de voz: se ele não entender o
   "sim", o comando é cancelado.
 

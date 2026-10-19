@@ -19,3 +19,6 @@ venv/
 
 # Memória local (tudo o que você falou)
 memory.json
+
+# Lista de programas instalados (gerada automaticamente)
+apps_cache.json
