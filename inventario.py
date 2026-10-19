@@ -10,8 +10,12 @@ import os
 import platform
 import re
 import subprocess
+import threading
+import time
 import unicodedata
 from pathlib import Path
+
+CACHE_APPS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps_cache.json")
 
 # Atalhos que não são programas de verdade
 IGNORAR = re.compile(
@@ -95,6 +99,40 @@ def listar_apps(limite=400):
         print(f"[apps] Não consegui listar os programas instalados ({e}).")
         return []
     return _limpar(dados, limite)
+
+
+def _salvar_cache(apps):
+    try:
+        with open(CACHE_APPS, "w", encoding="utf-8") as f:
+            json.dump(apps, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"[apps] Não consegui salvar a lista de programas ({e}).")
+
+
+def _atualizar_cache(limite, espera):
+    time.sleep(espera)   # espera o assistente terminar de ligar, para não disputar o processador
+    apps = listar_apps(limite)
+    if apps:
+        _salvar_cache(apps)
+
+
+def listar_apps_rapido(limite=400):
+    """
+    Usa a lista salva da última vez (instantâneo, mesmo com o PC lento) e atualiza o arquivo
+    em segundo plano para a próxima vez. Sem lista salva, lista agora.
+    """
+    try:
+        with open(CACHE_APPS, encoding="utf-8") as f:
+            apps = json.load(f)
+    except Exception:
+        apps = None
+    if apps:
+        threading.Thread(target=_atualizar_cache, args=(limite, 60), daemon=True).start()
+        return apps
+    apps = listar_apps(limite)
+    if apps:
+        _salvar_cache(apps)
+    return apps
 
 
 def encontrar(pedido, apps):
