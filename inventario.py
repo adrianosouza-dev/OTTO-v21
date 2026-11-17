@@ -107,14 +107,22 @@ def encontrar(pedido, apps):
     if alvo in por_nome:
         return por_nome[alvo]
 
+    # O pedido aparece no nome do programa (ou o contrário), mas só valendo palavras
+    # inteiras: "chrome" acha "Google Chrome", mas "gmail" não acha "Mail".
+    # O pedido pode ser o começo de uma palavra ("whats" acha "WhatsApp").
     contem = [
         k for k in por_nome
-        if (len(alvo) >= 3 and alvo in k) or (len(k) >= 4 and k in alvo)
+        if (len(alvo) >= 3 and re.search(r"(?<!\w)" + re.escape(alvo), k))
+        or (len(k) >= 4 and re.search(r"(?<!\w)" + re.escape(k) + r"(?!\w)", alvo))
     ]
     if contem:
         return por_nome[min(contem, key=len)]
 
-    parecido = difflib.get_close_matches(alvo, list(por_nome), n=1, cutoff=0.7)
+    # Nome parecido, para erros pequenos de transcrição ("whatsap", "calculdora").
+    # Se um nome está dentro do outro ("gmail" e "mail"), são palavras diferentes:
+    # esse caso já foi decidido acima e não vale como "parecido".
+    candidatos = [k for k in por_nome if k not in alvo and alvo not in k]
+    parecido = difflib.get_close_matches(alvo, candidatos, n=1, cutoff=0.8)
     return por_nome[parecido[0]] if parecido else None
 
 
