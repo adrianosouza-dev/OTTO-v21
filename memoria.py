@@ -9,6 +9,7 @@ Memória permanente do Jarvis.
 import json
 import os
 import re
+import time
 
 import config
 
@@ -70,20 +71,48 @@ def salvar(comando_texto, comando_ia):
 
 
 def _ler_local():
-    if os.path.exists(ARQUIVO_LOCAL):
-        try:
-            with open(ARQUIVO_LOCAL, "r", encoding="utf-8") as f:
-                return json.load(f).get("historico", [])
-        except Exception:
-            return []
-    return []
+    """
+    Devolve a lista do histórico local.
+    - [] se o arquivo ainda não existe
+    - None se o arquivo existe mas não dá para ler (corrompido ou formato inesperado)
+    """
+    if not os.path.exists(ARQUIVO_LOCAL):
+        return []
+    try:
+        with open(ARQUIVO_LOCAL, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        historico = dados.get("historico", []) if isinstance(dados, dict) else None
+        return historico if isinstance(historico, list) else None
+    except Exception:
+        return None
+
+
+def _guardar_copia_do_arquivo_ruim():
+    """Renomeia o memory.json ilegível em vez de apagar, para não perder o histórico."""
+    copia = f"{ARQUIVO_LOCAL}.corrompido-{time.strftime('%Y%m%d-%H%M%S')}"
+    try:
+        os.replace(ARQUIVO_LOCAL, copia)
+        print(f"[memória] {ARQUIVO_LOCAL} estava ilegível. Guardei uma cópia em {copia} e comecei um novo.")
+    except Exception as e:
+        print(f"[memória] {ARQUIVO_LOCAL} está ilegível e não consegui guardar uma cópia ({e}). Não vou salvar.")
+        return False
+    return True
 
 
 def _salvar_local(registro):
     historico = _ler_local()
+    if historico is None:
+        if not _guardar_copia_do_arquivo_ruim():
+            return
+        historico = []
     historico.append(registro)
-    with open(ARQUIVO_LOCAL, "w", encoding="utf-8") as f:
+
+    # Grava num arquivo temporário e só depois troca pelo original:
+    # se o programa fechar no meio, o memory.json antigo continua inteiro.
+    temporario = ARQUIVO_LOCAL + ".tmp"
+    with open(temporario, "w", encoding="utf-8") as f:
         json.dump({"historico": historico}, f, ensure_ascii=False, indent=2)
+    os.replace(temporario, ARQUIVO_LOCAL)
 
 
 # ---------------------------------------------------------------------------
@@ -148,9 +177,9 @@ def buscar_contexto(texto, recentes=5, relevantes=5):
             itens = _unir(recentes_db, relevantes_db)
         except Exception as e:
             print(f"[memória] Falha ao buscar no Supabase ({e}). Usando memory.json.")
-            itens = _ler_local()[-recentes:]
+            itens = (_ler_local() or [])[-recentes:]
     else:
-        itens = _ler_local()[-recentes:]
+        itens = (_ler_local() or [])[-recentes:]
 
     linhas = [f"- Você: {i.get('comando', '')} | Jarvis: {_texto_resposta(i)}" for i in itens]
     return "\n".join(linhas)

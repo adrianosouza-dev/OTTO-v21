@@ -16,3 +16,8 @@ venv/
 *.onnx.json
 
 *.wav
+
+# Memória local (histórico de comandos)
+memory.json
+memory.json.tmp
+memory.json.corrompido-*
