@@ -222,10 +222,31 @@ def ouvir():
 # ---------------------------------------------------------------------------
 
 def extrair_json(texto):
-    """Aceita JSON puro ou JSON dentro de cercas de markdown (```json ... ```)."""
+    """
+    Acha o objeto JSON na resposta do Claude. Aceita JSON puro, JSON dentro de cercas
+    de markdown (```json ... ```) e JSON com texto antes ou depois ("Claro! {...}").
+    """
     texto = texto.strip()
     texto = re.sub(r"^```(?:json)?\s*|\s*```$", "", texto, flags=re.IGNORECASE)
-    return json.loads(texto)
+    try:
+        dados = json.loads(texto)
+        if isinstance(dados, dict):
+            return dados
+    except json.JSONDecodeError:
+        pass
+
+    # Tenta a partir de cada "{" até achar um objeto JSON válido
+    decodificador = json.JSONDecoder()
+    for posicao, caractere in enumerate(texto):
+        if caractere != "{":
+            continue
+        try:
+            dados, _ = decodificador.raw_decode(texto, posicao)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(dados, dict):
+            return dados
+    raise json.JSONDecodeError("Nenhum objeto JSON encontrado", texto, 0)
 
 
 def interpretar_comando_teste(texto):
