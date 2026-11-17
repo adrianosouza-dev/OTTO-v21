@@ -17,7 +17,10 @@ venv/
 
 *.wav
 
-# Memória local (histórico de comandos)
+# Memória local (tudo o que você falou), arquivo temporário e cópias de arquivos ilegíveis
 memory.json
 memory.json.tmp
 memory.json.corrompido-*
+
+# Lista de programas instalados (gerada automaticamente)
+apps_cache.json
