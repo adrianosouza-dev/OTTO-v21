@@ -17,6 +17,7 @@ import subprocess
 import threading
 import time
 import webbrowser
+from urllib.parse import quote_plus
 
 import speech_recognition as sr
 import pyttsx3
@@ -298,7 +299,7 @@ def executar_acao(comando):
         if not inventario.abrir_configuracao(argument):
             reply = "Não consegui abrir as configurações."
     elif action == "web_search":
-        webbrowser.open(f"https://www.google.com/search?q={argument}")
+        webbrowser.open(f"https://www.google.com/search?q={quote_plus(argument)}")
     elif action == "open_url":
         webbrowser.open(argument)
     elif action == "run_shell":
