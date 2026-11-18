@@ -443,7 +443,7 @@ def main():
     calibrar_microfone()
     # A palavra de ativação só aparece no terminal: se fosse falada, o microfone poderia captá-la
     print(f"Diga '{WAKE_WORD}' seguido do comando. Ctrl+C para sair.")
-    falar(f"{ASSISTANT_NAME} online. Às suas ordens.")
+    falar(f"{ASSISTANT_NAME}, online.")
 
     threading.Thread(target=_thread_escuta, daemon=True).start()
     threading.Thread(target=_thread_transcricao, daemon=True).start()
