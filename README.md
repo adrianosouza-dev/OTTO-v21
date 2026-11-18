@@ -120,9 +120,10 @@ como "aquela pesquisa de ontem".
 | **Palavra de ativação** | "**storm**, abre o Chrome". Também aceita "estorm", "istorm" e "storme", que são erros comuns de transcrição |
 | **Só a palavra** | "storm" → ele toca um bip e espera o comando |
 | **Janela de 60 s** | Depois de cada comando, aceita outro **sem** dizer "storm" por 60 segundos |
-| **Modo contínuo** | Diga "storm, **modo contínuo**": ele ouve tudo até você dizer "**pode dormir**" |
+| **Modo contínuo** | Diga "storm, **modo contínuo**": ele ouve tudo até você dizer "**desligar**" |
 
-Para sair: `Ctrl+C` no terminal.
+Para sair: diga "storm, **desligar**" (fora do modo contínuo) ou aperte `Ctrl+C` no terminal.
+"Desligar" só vale como frase sozinha: "desliga o bluetooth", por exemplo, não fecha o assistente.
 
 ---
 

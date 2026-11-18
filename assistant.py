@@ -41,9 +41,15 @@ VARIACOES_ATIVACAO = {WAKE_WORD.lower(), "estorm", "istorm", "storme"}
 _PADRAO_ATIVACAO = re.compile(
     r"\b(" + "|".join(re.escape(p) for p in VARIACOES_ATIVACAO) + r")\b"
 )
-# Comandos de controle: aceitam a palavra cortada pela transcrição ("modo contín", "pode dorm")
+# Comandos de controle: aceitam a palavra cortada pela transcrição ("modo contín", "deslig")
 _MODO_CONTINUO = re.compile(r"\bmodo cont[ií]n")
-_PODE_DORMIR = re.compile(r"\bpode dorm")
+# "Desligar" só vale sozinho ("desligar", "desliga", "pode desligar"), para que um pedido
+# como "desliga o bluetooth" não feche o assistente
+_DESLIGAR = re.compile(r"(pode\s+)?(se\s+)?deslig\w*")
+
+
+def e_comando_desligar(texto):
+    return bool(_DESLIGAR.fullmatch(texto.strip(" .,!?")))
 
 # Escuta
 PAUSA_FIM_FRASE = 1.3     # segundos de silêncio para considerar que você terminou de falar
@@ -450,7 +456,7 @@ def main():
 
     JANELA_SEGUNDOS = 60    # tempo em que aceita comandos sem a palavra de ativação
     ativo_ate = 0
-    modo_continuo = False   # True = escuta tudo até você dizer "pode dormir"
+    modo_continuo = False   # True = escuta tudo até você dizer "desligar"
 
     try:
         while True:
@@ -476,14 +482,18 @@ def main():
             # Comandos de controle (não gastam API)
             if _MODO_CONTINUO.search(comando_texto):
                 modo_continuo = True
-                falar("Modo contínuo ativado. Vou ouvir até você dizer: pode dormir.")
+                falar("Modo contínuo ativado.")
                 continue
 
-            if _PODE_DORMIR.search(comando_texto):
-                modo_continuo = False
-                ativo_ate = 0
-                falar("Certo, só volto a responder quando você me chamar.")
-                continue
+            # "Desligar": no modo contínuo, sai dele; fora dele, fecha o assistente
+            if e_comando_desligar(comando_texto):
+                if modo_continuo:
+                    modo_continuo = False
+                    ativo_ate = 0
+                    falar("Certo, só volto a responder quando você me chamar.")
+                    continue
+                falar("Até logo!", esperar=True)
+                return
 
             if not comando_texto:
                 tocar_bip()   # só a palavra de ativação: o bip avisa que pode falar
